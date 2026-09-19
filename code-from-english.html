@@ -127,6 +127,7 @@
             font-family: 'IBM Plex Mono', ui-monospace, monospace;
             color: var(--pine);
             padding: 0 0.1em;
+            cursor: pointer;
         }
 
         /* right-margin sidenote */
@@ -167,6 +168,35 @@
             white-space: pre;
         }
 
+        /* hover magnifier over the hero screenshot */
+        .zoomable {
+            position: relative;
+            display: block;
+            max-width: 34rem;
+            cursor: crosshair;
+        }
+
+        .zoomable img {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        .zoom-lens {
+            position: absolute;
+            width: 9rem;
+            height: 9rem;
+            border-radius: 50%;
+            border: 2px solid var(--ink);
+            box-shadow: 0 8px 26px rgba(28, 35, 33, 0.28), inset 0 0 0 3px rgba(253, 252, 248, 0.7);
+            background-color: var(--paper);
+            background-repeat: no-repeat;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+            z-index: 5;
+        }
+
         @media (max-width: 62rem) {
             .essay-grid {
                 grid-template-columns: minmax(0, 42rem);
@@ -184,6 +214,14 @@
 
             .sidenote {
                 display: none;
+            }
+
+            .sidenote.sn-open {
+                display: block;
+                float: none;
+                width: auto;
+                margin: 0.5rem 0 0.9rem;
+                padding-left: 0.9rem;
             }
         }
     </style>
@@ -220,7 +258,10 @@
                 </div>
 
                 <figure class="post-figure">
-                    <img src="assets/writings/proposal-2018.jpg" alt="The original project proposal email, July 9, 2018">
+                    <div class="zoomable" id="zoomable">
+                        <img id="zoom-img" src="assets/writings/proposal-2018.jpg" alt="The original project proposal email, July 9, 2018">
+                        <div class="zoom-lens" id="zoom-lens" aria-hidden="true"></div>
+                    </div>
                     <figcaption>The original email, July 9, 2018.</figcaption>
                 </figure>
 
@@ -358,18 +399,63 @@
     <script>
         (function () {
             var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
-            var byId = {};
-            links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
-            var sections = document.querySelectorAll('.essay-body section[id]');
-            var observer = new IntersectionObserver(function (entries) {
-                entries.forEach(function (entry) {
-                    if (entry.isIntersecting) {
-                        links.forEach(function (l) { l.classList.remove('active'); });
-                        if (byId[entry.target.id]) { byId[entry.target.id].classList.add('active'); }
+            var sections = links
+                .map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); })
+                .filter(Boolean);
+
+            function setActive(id) {
+                links.forEach(function (l) {
+                    l.classList.toggle('active', l.getAttribute('href').slice(1) === id);
+                });
+            }
+
+            function onScroll() {
+                if (!sections.length) { return; }
+                var offset = 140;
+                var current = sections[0].id;
+                sections.forEach(function (s) {
+                    if (s.getBoundingClientRect().top <= offset) { current = s.id; }
+                });
+                if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+                    current = sections[sections.length - 1].id;
+                }
+                setActive(current);
+            }
+
+            window.addEventListener('scroll', onScroll, { passive: true });
+            window.addEventListener('resize', onScroll);
+            onScroll();
+
+            document.querySelectorAll('.cite').forEach(function (sup) {
+                sup.addEventListener('click', function () {
+                    var note = sup.nextElementSibling;
+                    if (note && note.classList.contains('sidenote')) {
+                        note.classList.toggle('sn-open');
                     }
                 });
-            }, { rootMargin: '0px 0px -75% 0px', threshold: 0 });
-            sections.forEach(function (s) { observer.observe(s); });
+            });
+
+            var lens = document.getElementById('zoom-lens');
+            var zoomImg = document.getElementById('zoom-img');
+            var zoomBox = document.getElementById('zoomable');
+            if (lens && zoomImg && zoomBox) {
+                var zoom = 2.4;
+                var imgUrl = 'assets/writings/proposal-2018.jpg';
+                zoomBox.addEventListener('mousemove', function (e) {
+                    var r = zoomImg.getBoundingClientRect();
+                    var x = e.clientX - r.left;
+                    var y = e.clientY - r.top;
+                    if (x < 0 || y < 0 || x > r.width || y > r.height) { lens.style.opacity = 0; return; }
+                    var lw = lens.offsetWidth, lh = lens.offsetHeight;
+                    lens.style.opacity = 1;
+                    lens.style.left = (x - lw / 2) + 'px';
+                    lens.style.top = (y - lh / 2) + 'px';
+                    lens.style.backgroundImage = 'url("' + imgUrl + '")';
+                    lens.style.backgroundSize = (r.width * zoom) + 'px ' + (r.height * zoom) + 'px';
+                    lens.style.backgroundPosition = '-' + (x * zoom - lw / 2) + 'px -' + (y * zoom - lh / 2) + 'px';
+                });
+                zoomBox.addEventListener('mouseleave', function () { lens.style.opacity = 0; });
+            }
         })();
     </script>
 </body>
